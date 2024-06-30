@@ -6,7 +6,7 @@ interface deviceType extends Document {
   updatedAt: Date;
 }
 
-const remedyTypeSchema: Schema<deviceType> = new Schema<deviceType>(
+const deviceSchema: Schema<deviceType> = new Schema<deviceType>(
   {
     name: {
       type: String,
@@ -16,6 +16,6 @@ const remedyTypeSchema: Schema<deviceType> = new Schema<deviceType>(
   { timestamps: true }
 );
 
-const Device = mongoose.model<deviceType>("Device", remedyTypeSchema);
+const Device = mongoose.model<deviceType>("Device", deviceSchema);
 
 export { Device };

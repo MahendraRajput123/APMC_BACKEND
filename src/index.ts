@@ -26,6 +26,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use(`/api/device`, require("../routes/deviceRoutes"));
+app.use(`/api/report`, require("../routes/reportRoutes"));
 
 app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`);

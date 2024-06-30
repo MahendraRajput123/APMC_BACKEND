@@ -49,11 +49,11 @@ const addDevices = expressAsyncHandler(async (req: Request, res: Response) => {
 
     if (device) {
       res.status(201).json(
-        new ApiResponse(200, { _id: device.id, name: device.name }, "")
+        new ApiResponse(200, { _id: device.id, name: device.name }, "Device added successfully!")
       );
     } else {
       res.status(400);
-      throw new Error("Error creating remedyType!");
+      throw new Error("Error creating Device");
     }
   } catch (error: any) {
     res.status(400);
