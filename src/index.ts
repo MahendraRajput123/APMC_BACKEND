@@ -1,13 +1,9 @@
 import express, { Request, Response, Router } from "express";
 import { configDotenv } from "dotenv";
-import ConnectDb from "../config/dbConnect";
 import ErrorHandler from "../middleware/errorHandler";
 import cors from "cors";
 
 const dotenv = configDotenv();
-
-ConnectDb();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
