@@ -17,7 +17,7 @@ const reportSchema: Schema<reportType> = new Schema<reportType>(
       required: true
     },
     numberPlateImg : {
-       type: String,
+      type: String,
       required: true
     },
     vehicleImg : { 
