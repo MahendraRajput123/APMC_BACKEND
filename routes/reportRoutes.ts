@@ -13,7 +13,7 @@ interface ReqWithVersion extends Request {
 
 const router = express.Router();
 
-// all remedyType routes
+// all report routes
 router.route("/get-all").get(getReport);
 router.route("/add").post(addReport);
 router.route("/update/:id").put(updateReport);

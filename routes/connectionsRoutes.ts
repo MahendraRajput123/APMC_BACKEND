@@ -1,10 +1,10 @@
 import express, { NextFunction, Request, Response } from "express";
 import {
-  addDevices,
-  deleteDevice,
-  getDevices,
-  updateDevice
-} from "../controller/deviceController";
+  addConnection,
+  getConnections,
+  updateConnection,
+  deleteConnection
+} from "../controller/connectionController";
 import { checkVersion } from "../middleware/check-version";
 
 interface ReqWithVersion extends Request {
@@ -13,11 +13,11 @@ interface ReqWithVersion extends Request {
 
 const router = express.Router();
 
-// all devices routes
-router.route("/get-all").get(getDevices);
-router.route("/add").post(addDevices);
-router.route("/update/:id").put(updateDevice);
-router.route("/delete/:id").delete(deleteDevice);
+// all connection routes
+router.route("/get-all").get(getConnections);
+router.route("/add").post(addConnection);
+router.route("/update/:id").put(updateConnection);
+router.route("/delete/:id").delete(deleteConnection);
 
 // If there are multiple versions of the API, you can use the following code
 // router.use(checkVersion);
