@@ -15,7 +15,7 @@ const getDevices = async (req: Request, res: Response) => {
     if (rows.length > 0) {
       res.status(200).json(new ApiResponse(200, rows, 'Successfully get all devices data!'));
     } else {
-      res.status(404).json(new ApiResponse(404, [], 'No devices found!'));
+      res.status(200).json(new ApiResponse(404, [], 'No devices found!'));
     }
 
     connection.end();
@@ -104,7 +104,7 @@ const updateDevice = async (req: Request, res: Response) => {
     );
 
     if (result.affectedRows > 0) {
-      res.status(200).json(new ApiResponse(200, { id, name, source, status }, 'Successfully updated device data!'));
+      res.status(200).json(new ApiResponse(200, { id, name, source, status }, 'Updated successufully'));
     } else {
       res.status(400).json(new ApiResponse(400, {}, 'Error updating Device'));
     }

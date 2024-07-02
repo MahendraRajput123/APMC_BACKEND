@@ -24,6 +24,26 @@ const getConnections = async (req: Request, res: Response) => {
   }
 };
 
+// Get connection
+const getConnection = async (req: Request, res: Response) => {
+  try {
+    const connection = await ConnectDb();
+
+    const [rows]: [RowDataPacket[], any] = await connection.query('SELECT * FROM connections WHERE status = 1');
+
+    if (rows.length > 0) {
+      res.status(200).json(new ApiResponse(200, rows, 'Successfully get all connections data!'));
+    } else {
+      res.status(404).json(new ApiResponse(404, [], 'No connections found!'));
+    }
+
+    connection.end();
+  } catch (error: any) {
+    console.error('Error fetching connections:', error.message);
+    res.status(500).json(new ApiResponse(500, [], 'Server Error'));
+  }
+};
+
 
 // Add new connection entry
 const addConnection = async (req: Request, res: Response) => {
@@ -117,4 +137,4 @@ const deleteConnection = async (req: Request, res: Response) => {
   }
 };
 
-export { getConnections, addConnection, updateConnection, deleteConnection };
+export { getConnections, addConnection, updateConnection, deleteConnection, getConnection };

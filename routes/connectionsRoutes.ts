@@ -3,7 +3,8 @@ import {
   addConnection,
   getConnections,
   updateConnection,
-  deleteConnection
+  deleteConnection,
+  getConnection
 } from "../controller/connectionController";
 import { checkVersion } from "../middleware/check-version";
 
@@ -14,6 +15,7 @@ interface ReqWithVersion extends Request {
 const router = express.Router();
 
 // all connection routes
+router.route("/get").get(getConnection);
 router.route("/get-all").get(getConnections);
 router.route("/add").post(addConnection);
 router.route("/update/:id").put(updateConnection);
