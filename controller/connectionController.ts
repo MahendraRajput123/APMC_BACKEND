@@ -5,6 +5,15 @@ import ConnectDb from "../config/dbConnect";
 import { OkPacket,RowDataPacket } from 'mysql2'; // Import OkPacket type if available
 const axios = require('axios');
 
+interface Connection extends RowDataPacket {
+  id: number;
+  source: string;
+  deviceName: string;
+  status: number;
+  startDate: Date;
+  endDate: Date;
+}
+
 // Get list of all connections
 const getConnections = async (req: Request, res: Response) => {
   try {
@@ -49,9 +58,9 @@ const getConnection = async (req: Request, res: Response) => {
 // Add new connection entry
 const addConnection = async (req: Request, res: Response) => {
   try {
-    const { deviceName, status } = req.body;
+    const { deviceName, status, source } = req.body;
 
-    if (!deviceName || status === null) {
+    if (!deviceName || status === null || status === undefined || !source) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are required!'));
       return;
     }
@@ -59,16 +68,15 @@ const addConnection = async (req: Request, res: Response) => {
     const connection = await ConnectDb();
 
     // Insert new connection
-    const [result]: [OkPacket, any] = await connection.query('INSERT INTO connections (deviceName, status, startDate, endDate) VALUES (?, ?, ?, ?)', [deviceName, status,new Date(),new Date()]);
+    const [result]: [OkPacket, any] = await connection.query('INSERT INTO connections (deviceName, status, startDate, endDate, source) VALUES (?, ?, ?, ?,?)', [deviceName, status,new Date(),new Date(),source]);
 
     if (result && ('insertId' in result)) {
       const insertId = result.insertId;
       res.status(201).json(new ApiResponse(201, { id: insertId, deviceName, status }, 'Connection added successfully!'));
       const response = await axios.post('http://192.168.1.42:5000/api/start-stream', {
-            source: "rtsp://admin:admin@789@192.168.1.199:554/unicast/c1/s0/live",
-            deviceName: "Daskrol_ANPR"
+            source: source,
+            deviceName: deviceName
         });
-
 
         if (response.data.status == 'success') {
           console.log('Connection started successfully');  
@@ -129,6 +137,10 @@ const deleteConnection = async (req: Request, res: Response) => {
 
     const connection = await ConnectDb();
 
+    const [rows] = await connection.query<Connection[]>(
+      'SELECT * FROM connections WHERE status = 1 ORDER BY startDate DESC LIMIT 1'
+    );
+
     // Update Connection details
     const [result]: [OkPacket, any] = await connection.query(
       'UPDATE connections SET  status = ?, endDate = ? WHERE id = ?',
@@ -139,8 +151,8 @@ const deleteConnection = async (req: Request, res: Response) => {
       res.status(200).json(new ApiResponse(200, result, 'Successfully updated Connection data!'));
 
       const response = await axios.post('http://192.168.1.42:5000/api/end-stream', {
-        source: "rtsp://admin:admin@789@192.168.1.199:554/unicast/c1/s0/live",
-        deviceName: "Daskrol_ANPR"
+        source: rows[0]?.source,
+        deviceName: rows[0]?.deviceName
       });
 
       if (response.data.status == 'success') {
