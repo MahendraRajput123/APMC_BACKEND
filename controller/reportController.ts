@@ -3,6 +3,14 @@ import { Request, Response } from "express";
 import mysql, { RowDataPacket } from "mysql2/promise";
 import { ApiResponse } from "../utils/apiResponse";
 import ConnectDb from "../config/dbConnect";
+import fs from 'fs-extra';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+const os = require('os');
+
+
+// Get the IPv4 address
+const ipAddress = getIPv4Address();
 
 // Get list of all reports
 const getReport = expressAsyncHandler(async (req: Request, res: Response) => {
@@ -26,27 +34,67 @@ const getReport = expressAsyncHandler(async (req: Request, res: Response) => {
   }
 });
 
+// Function to save base64 image
+const saveBase64Image = async (base64Data: string, folderName: string): Promise<string> => {
+  const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) {
+    throw new Error('Invalid base64 string');
+  }
+
+  const imageBuffer = Buffer.from(matches[2], 'base64');
+  const fileExtension = matches[1].split('/')[1];
+  const fileName = `${uuidv4()}.${fileExtension}`;
+  const filePath = path.join(__dirname, '..', 'uploads', folderName, fileName);
+
+  await fs.ensureDir(path.dirname(filePath));
+  await fs.writeFile(filePath, imageBuffer);
+
+  return fileName;
+};
+
+// Function to get the IPv4 address
+function getIPv4Address() {
+  const interfaces = os.networkInterfaces();
+  for (const devName in interfaces) {
+    const iface = interfaces[devName];
+    for (let i = 0; i < iface.length; i++) {
+      const alias = iface[i];
+      if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+        return alias.address;
+      }
+    }
+  }
+  return '0.0.0.0'; // Default fallback
+}
+
 // Add new report entry
 const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
-    const { numberPlateImg, vehicleImg, deviceName, vehicleType } = req.body;
+    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate } = req.body;
 
-    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType) {
+    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType || !numberPlate) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are mandatory!'));
       return;
     }
 
+    // Save images
+    const numberPlateImgFileName = await saveBase64Image(numberPlateImg, 'numberPlates');
+    const vehicleImgFileName = await saveBase64Image(vehicleImg, 'vehicles');
+
+    const numberPlateImageUrl = `http://${ipAddress}:${process.env.PORT || 8000}/uploads/numberPlates/${numberPlateImgFileName}`;
+    const vehicleImageUrl = `http://${ipAddress}:${process.env.PORT || 8000}/uploads/vehicles/${vehicleImgFileName}`;
+
     const connection = await ConnectDb();
     const [result] = await connection.query(
-      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date) VALUES (?, ?, ?, ?, ?)',
-      [numberPlateImg, vehicleImg, deviceName, vehicleType, new Date()]
+      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate) VALUES (?, ?, ?, ?, ?, ?)',
+      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate]
     );
 
     connection.end();
 
     if ((result as any).affectedRows > 0) {
       res.status(201).json(
-        new ApiResponse(201, { id: (result as any).insertId, numberPlateImg, vehicleImg, deviceName, vehicleType }, "Report added successfully!")
+        new ApiResponse(201, { id: (result as any).insertId, numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType,numberPlate }, "Report added successfully!")
       );
     } else {
       res.status(400).json(new ApiResponse(400, {}, "Error creating Report!"));
@@ -61,7 +109,7 @@ const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
 const updateReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { numberPlateImg, vehicleImg, deviceName, vehicleType } = req.body;
+    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate } = req.body;
 
     if (!id) {
       res.status(400).json(new ApiResponse(400, {}, "Id is required to update!"));
@@ -84,13 +132,14 @@ const updateReport = expressAsyncHandler(async (req: Request, res: Response) => 
       vehicleImg: vehicleImg ? vehicleImg : (existingReport as any)[0].vehicleImg,
       deviceName: deviceName ? deviceName : (existingReport as any)[0].deviceName,
       vehicleType: vehicleType ? vehicleType : (existingReport as any)[0].vehicleType,
+      numberPlate: numberPlate ? numberPlate : (existingReport as any)[0].numberPlate,
       date: new Date()
     };
 
     // Update report details
     const [result] = await connection.query(
-      'UPDATE report SET numberPlateImg = ?, vehicleImg = ?, deviceName = ?, vehicleType = ?, date = ? WHERE id = ?',
-      [updateReport.numberPlateImg, updateReport.vehicleImg, updateReport.deviceName, updateReport.vehicleType, updateReport.date, id]
+      'UPDATE report SET numberPlateImg = ?, vehicleImg = ?, deviceName = ?, vehicleType = ?, date = ? numberPlate = ? WHERE id = ?',
+      [updateReport.numberPlateImg, updateReport.vehicleImg, updateReport.deviceName, updateReport.vehicleType, updateReport.date,updateReport.numberPlate, id]
     );
 
     connection.end();

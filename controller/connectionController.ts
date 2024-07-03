@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { ApiResponse } from "../utils/apiResponse";
 import ConnectDb from "../config/dbConnect";
 import { OkPacket,RowDataPacket } from 'mysql2'; // Import OkPacket type if available
+const axios = require('axios');
 
 // Get list of all connections
 const getConnections = async (req: Request, res: Response) => {
@@ -63,6 +64,16 @@ const addConnection = async (req: Request, res: Response) => {
     if (result && ('insertId' in result)) {
       const insertId = result.insertId;
       res.status(201).json(new ApiResponse(201, { id: insertId, deviceName, status }, 'Connection added successfully!'));
+      const response = await axios.post('http://192.168.1.42:5000/api/start-stream', {
+            source: "rtsp://admin:admin@789@192.168.1.199:554/unicast/c1/s0/live",
+            deviceName: "Daskrol_ANPR"
+        });
+
+
+        if (response.data.status == 'success') {
+          console.log('Connection started successfully');  
+        }
+
     } else {
       res.status(400).json(new ApiResponse(400, {}, 'Error Connection Device'));
     }
@@ -126,6 +137,16 @@ const deleteConnection = async (req: Request, res: Response) => {
 
     if (result.affectedRows > 0) {
       res.status(200).json(new ApiResponse(200, result, 'Successfully updated Connection data!'));
+
+      const response = await axios.post('http://192.168.1.42:5000/api/end-stream', {
+        source: "rtsp://admin:admin@789@192.168.1.199:554/unicast/c1/s0/live",
+        deviceName: "Daskrol_ANPR"
+      });
+
+      if (response.data.status == 'success') {
+        console.log('Connection ended successfully');
+      }
+
     } else {
       res.status(400).json(new ApiResponse(400, {}, 'Error updating Connection'));
     }
