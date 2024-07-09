@@ -67,24 +67,25 @@ const addConnection = async (req: Request, res: Response) => {
 
     const connection = await ConnectDb();
 
-    // Insert new connection
-    const [result]: [OkPacket, any] = await connection.query('INSERT INTO connections (deviceName, status, startDate, endDate, source) VALUES (?, ?, ?, ?,?)', [deviceName, status,new Date(),new Date(),source]);
-
-    if (result && ('insertId' in result)) {
-      const insertId = result.insertId;
-      res.status(201).json(new ApiResponse(201, { id: insertId, deviceName, status }, 'Connection added successfully!'));
-      const response = await axios.post('http://192.168.1.42:5000/api/start-stream', {
-            source: source,
-            deviceName: deviceName
-        });
-
-        if (response.data.status == 'success') {
-          console.log('Connection started successfully');  
+    const response = await axios.post('http://192.168.100.250:5000/api/start-stream', {
+          source: source,
+          deviceName: deviceName
+      });
+      
+      if (response.data.status == 'success') {
+        // Insert new connection
+        const [result]: [OkPacket, any] = await connection.query('INSERT INTO connections (deviceName, status, startDate, endDate, source) VALUES (?, ?, ?, ?,?)', [deviceName, status,new Date(),new Date(),source]);
+         
+        if (result && ('insertId' in result)) {
+          const insertId = result.insertId;
+          res.status(201).json(new ApiResponse(201, { id: insertId, deviceName, status }, 'Connection added successfully!'));
+        } else {
+          res.status(400).json(new ApiResponse(400, {}, 'Error Connection Device msql'));
         }
 
-    } else {
-      res.status(400).json(new ApiResponse(400, {}, 'Error Connection Device'));
-    }
+      }else{
+        res.status(400).json(new ApiResponse(400, {}, 'Currently camera is off.'));
+      }
 
     connection.end();
   } catch (error: any) {
@@ -141,26 +142,26 @@ const deleteConnection = async (req: Request, res: Response) => {
       'SELECT * FROM connections WHERE status = 1 ORDER BY startDate DESC LIMIT 1'
     );
 
-    // Update Connection details
-    const [result]: [OkPacket, any] = await connection.query(
-      'UPDATE connections SET  status = ?, endDate = ? WHERE id = ?',
-      [ 0, new Date(), connectionId]
-    );
+    const response = await axios.post('http://192.168.100.250:5000/api/end-stream', {
+      source: rows[0]?.source,
+      deviceName: rows[0]?.deviceName
+    });
 
-    if (result.affectedRows > 0) {
-      res.status(200).json(new ApiResponse(200, result, 'Successfully updated Connection data!'));
+    if (response.data.status == 'success') {
+      
+        const [result]: [OkPacket, any] = await connection.query(
+          'UPDATE connections SET  status = ?, endDate = ? WHERE id = ?',
+          [ 0, new Date(), connectionId]
+        );
 
-      const response = await axios.post('http://192.168.1.42:5000/api/end-stream', {
-        source: rows[0]?.source,
-        deviceName: rows[0]?.deviceName
-      });
-
-      if (response.data.status == 'success') {
-        console.log('Connection ended successfully');
-      }
-
-    } else {
-      res.status(400).json(new ApiResponse(400, {}, 'Error updating Connection'));
+        if (result.affectedRows > 0) {
+          res.status(200).json(new ApiResponse(200, result, 'Successfully updated Connection data!'));
+        } else {
+          res.status(400).json(new ApiResponse(400, {}, 'Error updating Connection mysql'));
+        }
+        
+    }else{
+      res.status(400).json(new ApiResponse(400, {}, 'Currently camera is off.'));
     }
 
     connection.end();
