@@ -7,7 +7,10 @@ import fs from 'fs-extra';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 const os = require('os');
-
+import PDFDocument from 'pdfkit';
+import axios from 'axios';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 
 // Get the IPv4 address
 const ipAddress = getIPv4Address();
@@ -193,4 +196,66 @@ const deleteReport = expressAsyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-export { getReport, addReport, updateReport, deleteReport };
+// Generate PDF report
+const generatePDFReport = expressAsyncHandler(async (req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: Function): Promise<void> => {
+  try {
+    const connection = await ConnectDb();
+    const [rows]: any[] = await connection.query('SELECT * FROM report ORDER BY date DESC');
+    connection.end();
+
+    if ((rows as any[]).length === 0) {
+      res.status(404).json(new ApiResponse(404, [], "No reports found!"));
+      return;
+    }
+
+    const doc = new PDFDocument({ margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
+    doc.pipe(res);
+
+    const itemsPerPage = 3;
+    const formatDate = (date: string) => new Date(date).toLocaleString();
+
+    for (let i = 0; i < (rows as any[])?.length; i++) {
+      if (i % itemsPerPage === 0 && i !== 0) {
+        doc.addPage();
+      }
+
+      const item = rows[i];
+      const yOffset = 50 + ((i % itemsPerPage) * 250);
+
+      doc.fontSize(14).font('Helvetica-Bold')
+         .text(`Id: ${item.id}`, 50, yOffset);
+      
+      doc.fontSize(12).font('Helvetica')
+         .text(`Camera Name: ${item.deviceName}`, 50, yOffset + 25)
+         .text(`Number Plate: ${item.numberPlate}`, 50, yOffset + 45)
+         .text(`Date & Time: ${formatDate(item.date)}`, 50, yOffset + 65)
+         .text(`Vehicle Type: ${item.vehicleType}`, 50, yOffset + 85);
+
+      try {
+        const [numberPlateImg, vehicleImg] = await Promise.all([
+          axios.get(item.numberPlateImg, { responseType: 'arraybuffer' }),
+          axios.get(item.vehicleImg, { responseType: 'arraybuffer' })
+        ]);
+
+        doc.image(numberPlateImg.data, 50, yOffset + 110, { width: 200 });
+        doc.image(vehicleImg.data, 300, yOffset + 110, { width: 200 });
+      } catch (error) {
+        console.error(`Failed to add image for item ${i}:`, error);
+        doc.text(`Image load failed for ID: ${item.id}`, 50, yOffset + 110);
+      }
+
+      if (i < (rows as any[]).length - 1) {
+        doc.moveTo(50, yOffset + 240).lineTo(550, yOffset + 240).stroke();
+      }
+    }
+
+    doc.end();
+  } catch (error: any) {
+    console.error('Error generating PDF report:', error.message);
+    res.status(500).json(new ApiResponse(500, [], 'Server Error'));
+  }
+});
+
+export { getReport, addReport, updateReport, deleteReport, generatePDFReport };
