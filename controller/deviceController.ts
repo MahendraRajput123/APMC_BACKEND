@@ -1,5 +1,4 @@
 import expressAsyncHandler from "express-async-handler";
-import { Device } from "../models/deviceModel";
 import { Request, Response } from "express";
 import { ApiResponse } from "../utils/apiResponse";
 import ConnectDb from "../config/dbConnect";

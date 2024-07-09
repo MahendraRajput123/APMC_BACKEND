@@ -45,7 +45,7 @@ const ErrorHandler = (
       });
       break;
     default:
-      console.log(`No Error, All good!`,err);
+      console.log(`message : `,err);
       break;
   }
 };
