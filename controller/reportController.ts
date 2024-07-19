@@ -199,8 +199,19 @@ const deleteReport = expressAsyncHandler(async (req: Request, res: Response) => 
 // Generate PDF report
 const generatePDFReport = expressAsyncHandler(async (req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: Function): Promise<void> => {
   try {
+    const { Ids }: { Ids: number[] } = req.body;
     const connection = await ConnectDb();
-    const [rows]: any[] = await connection.query('SELECT * FROM report ORDER BY date DESC');
+
+    let query = 'SELECT * FROM report';
+    let params: any[] = [];
+    
+    if (Ids && Array.isArray(Ids) && Ids.length > 0) {
+      query += ' WHERE id IN (' + Ids.map(() => '?').join(',') + ')';
+      params = Ids;
+    }
+    
+    query += ' ORDER BY date DESC';
+    const [rows]: any[] = await connection.query(query, params);
     connection.end();
 
     if ((rows as any[]).length === 0) {

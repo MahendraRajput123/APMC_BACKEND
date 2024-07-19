@@ -19,7 +19,7 @@ router.route("/get-all").get(getReport);
 router.route("/add").post(addReport);
 router.route("/update/:id").put(updateReport);
 router.route("/delete/:id").delete(deleteReport);
-router.route("/generate-pdf").get(generatePDFReport);
+router.route("/generate-pdf").post(generatePDFReport);
 
 // If there are multiple versions of the API, you can use the following code
 // router.use(checkVersion);
