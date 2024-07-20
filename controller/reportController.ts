@@ -1,6 +1,6 @@
 import expressAsyncHandler from "express-async-handler";
 import { Request, Response } from "express";
-import mysql, { RowDataPacket } from "mysql2/promise";
+import mysql, {OkPacket, RowDataPacket } from "mysql2/promise";
 import { ApiResponse } from "../utils/apiResponse";
 import ConnectDb from "../config/dbConnect";
 import fs from 'fs-extra';
@@ -269,4 +269,115 @@ const generatePDFReport = expressAsyncHandler(async (req: Request<ParamsDictiona
   }
 });
 
-export { getReport, addReport, updateReport, deleteReport, generatePDFReport };
+// Function to generate a random number plate
+const generateRandomPlate = () => {
+  const randomNum = Math.floor(1000 + Math.random() * 9000);
+  return `GJ0A${randomNum}`;
+};
+
+// Insert report data for the years 2023, 2024, and 2025
+const insertReportData = expressAsyncHandler(async (req: Request, res: Response) => {
+  try {
+    console.log("-----------------come")
+    const connection = await ConnectDb();
+    const numberPlateImgBase = "http://192.168.60.29:8000/uploads/numberPlates/";
+    const vehicleImgBase = "http://192.168.60.29:8000/uploads/vehicles/";
+    const vehicleType = "4 Wheeler";
+    const deviceName = "Daskrol_ANPR";
+
+    for (let year = 2023; year <= 2025; year++) {
+      for (let month = 1; month <= 12; month++) {
+        const date = new Date(year, month - 1, 1).toISOString().slice(0, 19).replace('T', ' ');
+        const numberPlateImg = numberPlateImgBase + "c3466368-8009-4921-a429-54b1b035c53d.jpeg"
+        const vehicleImg = vehicleImgBase + "8231ec16-7722-47a9-ac6c-81404c21f9f4.webp";
+        const numberPlate = generateRandomPlate();
+
+        const [result]: [OkPacket, any] = await connection.query(
+          'INSERT INTO report (date, numberPlateImg, vehicleImg, vehicleType, deviceName, numberPlate) VALUES (?, ?, ?, ?, ?, ?)',
+          [date, numberPlateImg, vehicleImg, vehicleType, deviceName, numberPlate]
+        );
+
+        if (!result || !result.insertId) {
+          res.status(400).json(new ApiResponse(400, {}, 'Error inserting report data into MySQL'));
+          return;
+        }
+      }
+    }
+
+    connection.end();
+    res.status(201).json(new ApiResponse(201, {}, 'Report data inserted successfully!'));
+  } catch (error: any) {
+    console.error('Error inserting report data:', error.message);
+    res.status(500).json(new ApiResponse(500, {}, 'Server Error'));
+  }
+});
+
+// Fetch and format report summary
+const getReportSummary = expressAsyncHandler(async (req: Request, res: Response) => {
+  try {
+    const connection = await ConnectDb();
+    const [rows] = await connection.query('SELECT * FROM report');
+    connection.end();
+
+    if ((rows as any[]).length > 0) {
+      const reportSummary = formatReportSummary(rows as any[]);
+      res.status(200).json(
+        new ApiResponse(200, reportSummary, "Successfully got all report data!")
+      );
+    } else {
+      res.status(404).json(
+        new ApiResponse(404, [], "No reports found!")
+      );
+    }
+  } catch (error: any) {
+    console.error('Error fetching reports:', error.message);
+    res.status(500).json(new ApiResponse(500, [], 'Server Error'));
+  }
+});
+
+// Format report data into the required structure
+const formatReportSummary = (reports: any[]): any[] => {
+  const summary: { [key: string]: any } = {};
+
+  reports.forEach(report => {
+    const date = new Date(report.date);
+    const year = date.getFullYear();
+    const month = date.toLocaleString('default', { month: 'long' });
+    const deviceName = report.deviceName;
+
+    if (!summary[year]) {
+      summary[year] = {
+        TotalMonths: [],
+        totalReportsByDevice: []
+      };
+    }
+
+    // Increment month value
+    const monthEntry = summary[year].TotalMonths.find((m: any) => m.month === month);
+    if (monthEntry) {
+      monthEntry.value += 1;
+    } else {
+      summary[year].TotalMonths.push({ month, value: 1 });
+    }
+
+    // Increment device count
+    const deviceEntry = summary[year].totalReportsByDevice.find((d: any) => d.deviceName === deviceName);
+    if (deviceEntry) {
+      deviceEntry.count += 1;
+    } else {
+      summary[year].totalReportsByDevice.push({ deviceName, count: 1, percentage: 0 });
+    }
+  });
+
+  // Calculate percentages
+  Object.keys(summary).forEach(year => {
+    const totalReports = summary[year].totalReportsByDevice.reduce((sum: number, device: any) => sum + device.count, 0);
+    summary[year].totalReportsByDevice.forEach((device: any) => {
+      device.percentage = (device.count / totalReports) * 100;
+    });
+  });
+
+  return [summary];
+};
+
+export { getReport, addReport, updateReport, deleteReport, generatePDFReport,insertReportData,getReportSummary };
