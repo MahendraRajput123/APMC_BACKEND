@@ -12,6 +12,9 @@ import axios from 'axios';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
 
+// Add variable to keep track of last time called removeDuplicateReports function
+let lastRemoveDuplicatesTime: number = 0;
+
 // Get the IPv4 address
 const ipAddress = getIPv4Address();
 
@@ -73,9 +76,9 @@ function getIPv4Address() {
 // Add new report entry
 const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
-    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate } = req.body;
+    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate,originalNumberPlate } = req.body;
 
-    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType || !numberPlate) {
+    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType || !numberPlate || !originalNumberPlate) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are mandatory!'));
       return;
     }
@@ -89,13 +92,31 @@ const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
 
     const connection = await ConnectDb();
     const [result] = await connection.query(
-      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate) VALUES (?, ?, ?, ?, ?, ?)',
-      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate]
+      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate, originalNumberPlate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate,originalNumberPlate]
     );
 
     connection.end();
 
     if ((result as any).affectedRows > 0) {
+       // Check if it's been more than 5 minutes since last removeDuplicateReports call
+       const currentTime = Date.now();
+       if (currentTime - lastRemoveDuplicatesTime >= 5 * 60 * 1000) {
+        // It's been 5 minutes or more, so call removeDuplicateReports
+        try {
+          const response = await axios.get('http://localhost:8000/api/report/remove-duplicate');
+          console.log(response.data, "-------------------------------------Remove duplications");
+        } catch (error) {
+          if (axios.isAxiosError(error)) {
+            console.error("Error removing duplicates:", error.response?.data || error.message);
+          } else {
+            console.error("Unexpected error:", error);
+          }
+        }
+      }else{
+        console.log("-------------------------------------------------------------------diff is less than 5 min")
+      }
+       
       res.status(201).json(
         new ApiResponse(201, { id: (result as any).insertId, numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType,numberPlate }, "Report added successfully!")
       );
@@ -278,7 +299,6 @@ const generateRandomPlate = () => {
 // Insert report data for the years 2023, 2024, and 2025
 const insertReportData = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
-    console.log("-----------------come")
     const connection = await ConnectDb();
     const numberPlateImgBase = "http://192.168.60.29:8000/uploads/numberPlates/";
     const vehicleImgBase = "http://192.168.60.29:8000/uploads/vehicles/";
@@ -380,4 +400,64 @@ const formatReportSummary = (reports: any[]): any[] => {
   return [summary];
 };
 
-export { getReport, addReport, updateReport, deleteReport, generatePDFReport,insertReportData,getReportSummary };
+const removeDuplicateReports = expressAsyncHandler(async (req: Request, res: Response) => {
+  try {
+    const connection = await ConnectDb();
+    // Update the last time removeDuplicateReports was called
+    lastRemoveDuplicatesTime = Date.now();
+
+    // Step 1: Get today's data
+    const today = new Date().toISOString().split('T')[0];
+    const [rows] = await connection.query(
+      'SELECT id, numberPlate, date FROM report WHERE DATE(date) = ? ORDER BY date',
+      [today]
+    );
+
+    if ((rows as any[]).length === 0) {
+      res.status(404).json(new ApiResponse(404, [], "No reports found for today!"));
+      return;
+    }
+
+    // Step 2: Identify duplicates
+    const duplicates: number[] = [];
+    const uniqueEntries: { [key: string]: any } = {};
+
+    (rows as any[]).forEach((row, index) => {
+      const key = `${row.numberPlate}_${Math.floor(row.date.getTime() / 60000)}`;
+      if (uniqueEntries[key]) {
+        duplicates.push(row.id);
+      } else {
+        uniqueEntries[key] = row;
+      }
+    });
+
+    // Step 3: Remove duplicates
+    if (duplicates.length > 0) {
+      const [deleteResult] = await connection.query(
+        'DELETE FROM report WHERE id IN (?)',
+        [duplicates]
+      );
+
+      res.status(200).json(
+        new ApiResponse(200, { 
+          removedDuplicates: (deleteResult as any).affectedRows,
+          remainingEntries: Object.keys(uniqueEntries).length
+        }, "Successfully removed duplicate reports!")
+      );
+    } else {
+      res.status(200).json(
+        new ApiResponse(200, { 
+          removedDuplicates: 0,
+          remainingEntries: Object.keys(uniqueEntries).length
+        }, "No duplicates found!")
+      );
+    }
+
+    connection.end();
+  } catch (error: any) {
+    console.error('Error removing duplicate reports:', error.message);
+    res.status(500).json(new ApiResponse(500, [], 'Server Error'));
+  }
+});
+
+export { getReport, addReport, updateReport, deleteReport, generatePDFReport,insertReportData,getReportSummary, removeDuplicateReports };
