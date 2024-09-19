@@ -67,7 +67,7 @@ const addConnection = async (req: Request, res: Response) => {
 
     const connection = await ConnectDb();
 
-    const response = await axios.post('http://192.168.100.250:5000/api/start-stream', {
+    const response = await axios.post('http://localhost:5000/api/start-stream', {
           source: source,
           deviceName: deviceName
       });
@@ -142,7 +142,7 @@ const deleteConnection = async (req: Request, res: Response) => {
       'SELECT * FROM connections WHERE status = 1 ORDER BY startDate DESC LIMIT 1'
     );
 
-    const response = await axios.post('http://192.168.100.250:5000/api/end-stream', {
+    const response = await axios.post('http://localhost:5000/api/end-stream', {
       source: rows[0]?.source,
       deviceName: rows[0]?.deviceName
     });

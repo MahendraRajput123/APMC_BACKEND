@@ -87,8 +87,8 @@ const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
     const numberPlateImgFileName = await saveBase64Image(numberPlateImg, 'numberPlates');
     const vehicleImgFileName = await saveBase64Image(vehicleImg, 'vehicles');
 
-    const numberPlateImageUrl = `http://${ipAddress}:${process.env.PORT || 8000}/uploads/numberPlates/${numberPlateImgFileName}`;
-    const vehicleImageUrl = `http://${ipAddress}:${process.env.PORT || 8000}/uploads/vehicles/${vehicleImgFileName}`;
+    const numberPlateImageUrl = `http://localhost:${process.env.PORT || 8000}/uploads/numberPlates/${numberPlateImgFileName}`;
+    const vehicleImageUrl = `http://localhost:${process.env.PORT || 8000}/uploads/vehicles/${vehicleImgFileName}`;
 
     const connection = await ConnectDb();
     const [result] = await connection.query(
@@ -300,8 +300,8 @@ const generateRandomPlate = () => {
 const insertReportData = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
     const connection = await ConnectDb();
-    const numberPlateImgBase = "http://192.168.60.29:8000/uploads/numberPlates/";
-    const vehicleImgBase = "http://192.168.60.29:8000/uploads/vehicles/";
+    const numberPlateImgBase = "http://localhost:8000/uploads/numberPlates/";
+    const vehicleImgBase = "http://localhost:8000/uploads/vehicles/";
     const vehicleType = "4 Wheeler";
     const deviceName = "Daskrol_ANPR";
 

@@ -76,7 +76,7 @@ const getDashboardSettings = expressAsyncHandler(async (req: Request, res: Respo
   
       // Save image
       const logoFileName = await saveBase64Image(logo, 'logos');
-      const logoUrl = `http://${ipAddress}:${process.env.PORT || 8000}/uploads/logos/${logoFileName}`;
+      const logoUrl = `http://localhost:${process.env.PORT || 8000}/uploads/logos/${logoFileName}`;
   
       const connection = await ConnectDb();
       
