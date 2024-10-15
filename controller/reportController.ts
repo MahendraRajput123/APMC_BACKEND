@@ -1,6 +1,6 @@
 import expressAsyncHandler from "express-async-handler";
 import { Request, Response } from "express";
-import mysql, {OkPacket, RowDataPacket } from "mysql2/promise";
+import mysql, { OkPacket, RowDataPacket } from "mysql2/promise";
 import { ApiResponse } from "../utils/apiResponse";
 import ConnectDb from "../config/dbConnect";
 import fs from 'fs-extra';
@@ -12,30 +12,57 @@ import axios from 'axios';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
 
-// Add variable to keep track of last time called removeDuplicateReports function
-let lastRemoveDuplicatesTime: number = 0;
+
+async function runDuplicateRemoval() {
+  try {
+    const result = await removeDuplicateReports();
+    // console.log(result, '-------------------------------------Remove duplications');
+  } catch (error) {
+    console.error('Error in duplicate removal job:', error);
+  }
+}
+
+// Run every 5 minutes
+setInterval(runDuplicateRemoval, 5 * 60 * 1000);
 
 // Get list of all reports
 const getReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
     const connection = await ConnectDb();
     const [rows] = await connection.query('SELECT * FROM report');
-        
+
     if ((rows as any[]).length > 0) {
       res.status(200).json(
         new ApiResponse(200, rows, "Successfully got all report data!")
-        );
-      } else {
-        res.status(404).json(
-          new ApiResponse(404, [], "No reports found!")
-          );
-        }
+      );
+    } else {
+      res.status(404).json(
+        new ApiResponse(404, [], "No reports found!")
+      );
+    }
     connection.end();
   } catch (error: any) {
     console.error('Error fetching reports:', error.message);
     res.status(500).json(new ApiResponse(500, [], 'Server Error'));
   }
 });
+
+async function deleteImageFile(imageUrl: string) {
+  try {
+    const urlParts = new URL(imageUrl);
+    const relativePath = urlParts.pathname.replace('/uploads/', '');
+    const absolutePath = path.join(__dirname, '..', 'uploads', relativePath);
+
+    if (await fs.pathExists(absolutePath)) {
+      await fs.unlink(absolutePath);
+      // console.log(`Deleted image: ${absolutePath}`);
+    } else {
+      console.log(`Image not found: ${absolutePath}`);
+    }
+  } catch (error) {
+    console.error(`Error deleting image ${imageUrl}:`, error);
+  }
+}
 
 // Function to save base64 image
 const saveBase64Image = async (base64Data: string, folderName: string): Promise<string> => {
@@ -75,32 +102,14 @@ const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
     const connection = await ConnectDb();
     const [result] = await connection.query(
       'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate) VALUES (?, ?, ?, ?, ?, ?)',
-      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate]
+      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(), numberPlate]
     );
 
     connection.end();
 
     if ((result as any).affectedRows > 0) {
-       // Check if it's been more than 5 minutes since last removeDuplicateReports call
-       const currentTime = Date.now();
-       if (currentTime - lastRemoveDuplicatesTime >= 5 * 60 * 1000) {
-        // It's been 5 minutes or more, so call removeDuplicateReports
-        try {
-          const response = await axios.get('http://localhost:8000/api/report/remove-duplicate');
-          console.log(response.data, "-------------------------------------Remove duplications");
-        } catch (error) {
-          if (axios.isAxiosError(error)) {
-            console.error("Error removing duplicates:", error.response?.data || error.message);
-          } else {
-            console.error("Unexpected error:", error);
-          }
-        }
-      }else{
-        console.log("-------------------------------------------------------------------diff is less than 5 min")
-      }
-       
       res.status(201).json(
-        new ApiResponse(201, { id: (result as any).insertId, numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType,numberPlate }, "Report added successfully!")
+        new ApiResponse(201, { id: (result as any).insertId, numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, numberPlate }, "Report added successfully!")
       );
     } else {
       res.status(400).json(new ApiResponse(400, {}, "Error creating Report!"));
@@ -199,22 +208,6 @@ const deleteReport = expressAsyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-async function deleteImageFile(imageUrl: string) {
-  try {
-    const urlParts = new URL(imageUrl);
-    const relativePath = urlParts.pathname.replace('/uploads/', '');
-    const absolutePath = path.join(__dirname, '..', 'uploads', relativePath);
-    
-    if (await fs.pathExists(absolutePath)) {
-      await fs.unlink(absolutePath);
-      // console.log(`Deleted image: ${absolutePath}`);
-    } else {
-      console.log(`Image not found: ${absolutePath}`);
-    }
-  } catch (error) {
-    console.error(`Error deleting image ${imageUrl}:`, error);
-  }
-}
 
 const deleteReports = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
@@ -294,13 +287,13 @@ const generatePDFReport = expressAsyncHandler(async (req: Request<ParamsDictiona
       const yOffset = 50 + ((i % itemsPerPage) * 250);
 
       doc.fontSize(14).font('Helvetica-Bold')
-         .text(`Id: ${item.id}`, 50, yOffset);
-      
+        .text(`Id: ${item.id}`, 50, yOffset);
+
       doc.fontSize(12).font('Helvetica')
-         .text(`Camera Name: ${item.deviceName}`, 50, yOffset + 25)
-         .text(`Number Plate: ${item.numberPlate}`, 50, yOffset + 45)
-         .text(`Date & Time: ${formatDate(item.date)}`, 50, yOffset + 65)
-         .text(`Vehicle Type: ${item.vehicleType}`, 50, yOffset + 85);
+        .text(`Camera Name: ${item.deviceName}`, 50, yOffset + 25)
+        .text(`Number Plate: ${item.numberPlate}`, 50, yOffset + 45)
+        .text(`Date & Time: ${formatDate(item.date)}`, 50, yOffset + 65)
+        .text(`Vehicle Type: ${item.vehicleType}`, 50, yOffset + 85);
 
       try {
         const [numberPlateImg, vehicleImg] = await Promise.all([
@@ -437,64 +430,86 @@ const formatReportSummary = (reports: any[]): any[] => {
   return [summary];
 };
 
-const removeDuplicateReports = expressAsyncHandler(async (req: Request, res: Response) => {
+async function removeDuplicateReports() {
+  let connection;
   try {
-    const connection = await ConnectDb();
-    // Update the last time removeDuplicateReports was called
-    lastRemoveDuplicatesTime = Date.now();
+    connection = await ConnectDb();
 
     // Step 1: Get today's data
     const today = new Date().toISOString().split('T')[0];
     const [rows] = await connection.query(
-      'SELECT id, numberPlate, date FROM report WHERE DATE(date) = ? ORDER BY date',
+      'SELECT id, numberPlate, date, vehicleType, deviceName, numberPlateImg, vehicleImg FROM report WHERE DATE(date) = ? ORDER BY date DESC',
       [today]
     );
 
     if ((rows as any[]).length === 0) {
-      res.status(404).json(new ApiResponse(404, [], "No reports found for today!"));
-      return;
+      return { message: "No reports found for today!", removedDuplicates: 0, remainingEntries: 0 };
     }
 
     // Step 2: Identify duplicates
-    const duplicates: number[] = [];
+    const duplicates: { id: number, numberPlateImg: string, vehicleImg: string }[] = [];
     const uniqueEntries: { [key: string]: any } = {};
 
-    (rows as any[]).forEach((row, index) => {
-      const key = `${row.numberPlate}_${Math.floor(row.date.getTime() / 60000)}`;
+    (rows as any[]).forEach((row) => {
+      // Group by 5-minute intervals
+      const timeGroup = Math.floor(row.date.getTime() / (5 * 60 * 1000));
+      const key = `${row.numberPlate}_${timeGroup}_${row.vehicleType}_${row.deviceName}`;
+      
       if (uniqueEntries[key]) {
-        duplicates.push(row.id);
+        // If this entry is newer, keep it and mark the older one as duplicate
+        if (row.date > uniqueEntries[key].date) {
+          duplicates.push({
+            id: uniqueEntries[key].id,
+            numberPlateImg: uniqueEntries[key].numberPlateImg,
+            vehicleImg: uniqueEntries[key].vehicleImg
+          });
+          uniqueEntries[key] = row;
+        } else {
+          duplicates.push({
+            id: row.id,
+            numberPlateImg: row.numberPlateImg,
+            vehicleImg: row.vehicleImg
+          });
+        }
       } else {
         uniqueEntries[key] = row;
       }
     });
 
-    // Step 3: Remove duplicates
+    // Step 3: Remove duplicates from database
     if (duplicates.length > 0) {
+      const duplicateIds = duplicates.map(d => d.id);
       const [deleteResult] = await connection.query(
         'DELETE FROM report WHERE id IN (?)',
-        [duplicates]
+        [duplicateIds]
       );
 
-      res.status(200).json(
-        new ApiResponse(200, { 
-          removedDuplicates: (deleteResult as any).affectedRows,
-          remainingEntries: Object.keys(uniqueEntries).length
-        }, "Successfully removed duplicate reports!")
-      );
+      // Step 4: Delete associated image files
+      for (const duplicate of duplicates) {
+        await deleteImageFile(duplicate.numberPlateImg);
+        await deleteImageFile(duplicate.vehicleImg);
+      }
+
+      return {
+        message: "Successfully removed duplicate reports and associated images!",
+        removedDuplicates: (deleteResult as any).affectedRows,
+        remainingEntries: Object.keys(uniqueEntries).length
+      };
     } else {
-      res.status(200).json(
-        new ApiResponse(200, { 
-          removedDuplicates: 0,
-          remainingEntries: Object.keys(uniqueEntries).length
-        }, "No duplicates found!")
-      );
+      return {
+        message: "No duplicates found!",
+        removedDuplicates: 0,
+        remainingEntries: Object.keys(uniqueEntries).length
+      };
     }
-
-    connection.end();
   } catch (error: any) {
     console.error('Error removing duplicate reports:', error.message);
-    res.status(500).json(new ApiResponse(500, [], 'Server Error'));
+    throw error;
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
-});
+}
 
-export { getReport, addReport, updateReport, deleteReport,deleteReports, generatePDFReport,insertReportData,getReportSummary, removeDuplicateReports };
+export { getReport, addReport, updateReport, deleteReport, deleteReports, generatePDFReport, insertReportData, getReportSummary, removeDuplicateReports };
