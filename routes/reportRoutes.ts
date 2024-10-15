@@ -7,7 +7,8 @@ import {
   generatePDFReport, 
   insertReportData,
   getReportSummary,
-  removeDuplicateReports
+  removeDuplicateReports,
+  deleteReports
 } from "../controller/reportController";
 import { checkVersion } from "../middleware/check-version";
 
@@ -26,6 +27,7 @@ router.route("/generate-pdf").post(generatePDFReport);
 router.route("/dummy-report").get(insertReportData);
 router.route("/report-summary").get(getReportSummary);
 router.route("/remove-duplicate").get(removeDuplicateReports);
+router.route('/delete').post(deleteReports);
 // If there are multiple versions of the API, you can use the following code
 // router.use(checkVersion);
 // router

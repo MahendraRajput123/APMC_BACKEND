@@ -15,9 +15,6 @@ import { ParsedQs } from 'qs';
 // Add variable to keep track of last time called removeDuplicateReports function
 let lastRemoveDuplicatesTime: number = 0;
 
-// Get the IPv4 address
-const ipAddress = getIPv4Address();
-
 // Get list of all reports
 const getReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
@@ -58,27 +55,12 @@ const saveBase64Image = async (base64Data: string, folderName: string): Promise<
   return fileName;
 };
 
-// Function to get the IPv4 address
-function getIPv4Address() {
-  const interfaces = os.networkInterfaces();
-  for (const devName in interfaces) {
-    const iface = interfaces[devName];
-    for (let i = 0; i < iface.length; i++) {
-      const alias = iface[i];
-      if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
-        return alias.address;
-      }
-    }
-  }
-  return '0.0.0.0'; // Default fallback
-}
-
 // Add new report entry
 const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
   try {
-    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate,originalNumberPlate } = req.body;
+    const { numberPlateImg, vehicleImg, deviceName, vehicleType, numberPlate } = req.body;
 
-    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType || !numberPlate || !originalNumberPlate) {
+    if (!numberPlateImg || !vehicleImg || !deviceName || !vehicleType || !numberPlate) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are mandatory!'));
       return;
     }
@@ -92,8 +74,8 @@ const addReport = expressAsyncHandler(async (req: Request, res: Response) => {
 
     const connection = await ConnectDb();
     const [result] = await connection.query(
-      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate, originalNumberPlate) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate,originalNumberPlate]
+      'INSERT INTO report (numberPlateImg, vehicleImg, deviceName, vehicleType, date, numberPlate) VALUES (?, ?, ?, ?, ?, ?)',
+      [numberPlateImageUrl, vehicleImageUrl, deviceName, vehicleType, new Date(),numberPlate]
     );
 
     connection.end();
@@ -213,6 +195,61 @@ const deleteReport = expressAsyncHandler(async (req: Request, res: Response) => 
     }
   } catch (error: any) {
     console.error('Error deleting report:', error.message);
+    res.status(500).json(new ApiResponse(500, {}, 'Server Error'));
+  }
+});
+
+async function deleteImageFile(imageUrl: string) {
+  try {
+    const urlParts = new URL(imageUrl);
+    const relativePath = urlParts.pathname.replace('/uploads/', '');
+    const absolutePath = path.join(__dirname, '..', 'uploads', relativePath);
+    
+    if (await fs.pathExists(absolutePath)) {
+      await fs.unlink(absolutePath);
+      // console.log(`Deleted image: ${absolutePath}`);
+    } else {
+      console.log(`Image not found: ${absolutePath}`);
+    }
+  } catch (error) {
+    console.error(`Error deleting image ${imageUrl}:`, error);
+  }
+}
+
+const deleteReports = expressAsyncHandler(async (req: Request, res: Response) => {
+  try {
+    const reportIds: string[] = req.body.reportIds;
+    if (!reportIds || !Array.isArray(reportIds) || reportIds.length === 0) {
+      res.status(400).json(new ApiResponse(400, {}, 'Invalid or empty reportIds array in request body'));
+      return;
+    }
+
+    const connection = await ConnectDb();
+
+    // Fetch image URLs before deleting records
+    const [imageUrls] = await connection.query(
+      'SELECT numberPlateImg, vehicleImg FROM report WHERE id IN (?)',
+      [reportIds]
+    );
+
+    // Delete the reports
+    const [result] = await connection.query('DELETE FROM report WHERE id IN (?)', [reportIds]);
+
+    connection.end();
+
+    if ((result as any).affectedRows > 0) {
+      // Delete image files
+      for (const row of imageUrls as any[]) {
+        await deleteImageFile(row.numberPlateImg);
+        await deleteImageFile(row.vehicleImg);
+      }
+
+      res.status(200).json(new ApiResponse(200, { deletedCount: (result as any).affectedRows }, 'Successfully deleted reports and associated images!'));
+    } else {
+      res.status(404).json(new ApiResponse(404, {}, 'No matching reports found to delete'));
+    }
+  } catch (error: any) {
+    console.error('Error deleting reports:', error.message);
     res.status(500).json(new ApiResponse(500, {}, 'Server Error'));
   }
 });
@@ -460,4 +497,4 @@ const removeDuplicateReports = expressAsyncHandler(async (req: Request, res: Res
   }
 });
 
-export { getReport, addReport, updateReport, deleteReport, generatePDFReport,insertReportData,getReportSummary, removeDuplicateReports };
+export { getReport, addReport, updateReport, deleteReport,deleteReports, generatePDFReport,insertReportData,getReportSummary, removeDuplicateReports };
