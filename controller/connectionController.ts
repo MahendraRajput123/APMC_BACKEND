@@ -58,9 +58,9 @@ const getConnection = async (req: Request, res: Response) => {
 // Add new connection entry
 const addConnection = async (req: Request, res: Response) => {
   try {
-    const { deviceName, status, source } = req.body;
+    const { deviceName, status, source, frameType } = req.body;
 
-    if (!deviceName || status === null || status === undefined || !source) {
+    if (!deviceName || status === null || status === undefined || !source || frameType === null || frameType === undefined) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are required!'));
       return;
     }
@@ -69,7 +69,8 @@ const addConnection = async (req: Request, res: Response) => {
 
     const response = await axios.post('http://localhost:5000/api/start-stream', {
           source: source,
-          deviceName: deviceName
+          deviceName: deviceName,
+          frameType: frameType
       });
       
       if (response.data.status == 'success') {
