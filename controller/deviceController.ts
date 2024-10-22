@@ -28,9 +28,9 @@ const getDevices = async (req: Request, res: Response) => {
 // Add new device entry
 const addDevices = async (req: Request, res: Response) => {
   try {
-    const { name, source, status } = req.body;
+    const { name, source, status, frameType } = req.body;
 
-    if (!name || !source || status === undefined || status === null) {
+    if (!name || !source || status === undefined || status === null || frameType === undefined || frameType === null) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are required!'));
       return;
     }
@@ -47,11 +47,11 @@ const addDevices = async (req: Request, res: Response) => {
     }
 
     // Proceed with insertion if no existing record is found
-    const [result]: [OkPacket, any] = await connection.query('INSERT INTO devices (name, source, status) VALUES (?, ?, ?)', [name, source, status]);
+    const [result]: [OkPacket, any] = await connection.query('INSERT INTO devices (name, source, status,frameType) VALUES (?, ?, ?,?)', [name, source, status,frameType]);
 
     if (result && ('insertId' in result)) {
       const insertId = result.insertId;
-      res.status(201).json(new ApiResponse(201, { id: insertId, name, source, status }, 'Device added successfully!'));
+      res.status(201).json(new ApiResponse(201, { id: insertId, name, source, status,frameType }, 'Device added successfully!'));
     } else {
       res.status(400).json(new ApiResponse(400, {}, 'Error creating Device'));
     }
@@ -67,9 +67,9 @@ const addDevices = async (req: Request, res: Response) => {
 const updateDevice = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { name, source, status } = req.body;
+    const { name, source, status, frameType } = req.body;
 
-    if (!id || !name || !source || status === undefined || status === null) {
+    if (!id || !name || !source || status === undefined || status === null || frameType === undefined || frameType === null) {
       res.status(400).json(new ApiResponse(400, {}, 'All fields are required!'));
       return;
     }
@@ -98,12 +98,13 @@ const updateDevice = async (req: Request, res: Response) => {
 
     // Update device details
     const [result]: [OkPacket, any] = await connection.query(
-      'UPDATE devices SET name = ?, source = ?, status = ? WHERE id = ?',
-      [name, source, status, id]
+      'UPDATE devices SET name = ?, source = ?, status = ?, frameType = ? WHERE id = ?',
+      [name, source, status, frameType, id]
     );
 
+
     if (result.affectedRows > 0) {
-      res.status(200).json(new ApiResponse(200, { id, name, source, status }, 'Updated successufully'));
+      res.status(200).json(new ApiResponse(200, { id, name, source, status, frameType }, 'Updated successufully'));
     } else {
       res.status(400).json(new ApiResponse(400, {}, 'Error updating Device'));
     }
