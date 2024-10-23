@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "rootDir": "./",  // Changed from ./src to ./
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node"
+  },
+  "include": [
+    "src/**/*",
+    "middleware/**/*",
+    "routes/**/*",
+    "config/**/*",
+    "controller/**/*",
+    "utils/**/*",
+    "*.ts"  // This will include typescript files in the root
+  ],
+  "exclude": ["node_modules", "dist"]
+}
