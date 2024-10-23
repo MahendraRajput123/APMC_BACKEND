@@ -11,8 +11,8 @@ RUN npm install
 # Copy TypeScript configuration
 COPY tsconfig.json ./
 
-# Copy source code
-COPY src/ ./src/
+# Alternatively, copy the entire backend if feasible
+COPY . .
 
 # Build TypeScript code
 RUN npm run build
