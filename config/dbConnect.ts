@@ -21,9 +21,9 @@ import mysql from 'mysql2/promise';
 const ConnectDb = async () => {
   try {
     const connection = await mysql.createConnection({
-      host: '127.0.0.1',
+      host: 'mysql_db',
       user: 'root',
-      password: '123$AAaa',
+      password: 'apmc@7946',
       database: 'APMC',
       port: 3306,
     });
