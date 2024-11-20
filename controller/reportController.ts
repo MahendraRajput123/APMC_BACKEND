@@ -287,7 +287,7 @@ const generatePDFReport = expressAsyncHandler(async (req: Request<ParamsDictiona
       const yOffset = 50 + ((i % itemsPerPage) * 250);
 
       doc.fontSize(14).font('Helvetica-Bold')
-        .text(`Id: ${item.id}`, 50, yOffset);
+        .text(`Id: ${i + 1}`, 50, yOffset);
 
       doc.fontSize(12).font('Helvetica')
         .text(`Camera Name: ${item.deviceName}`, 50, yOffset + 25)
